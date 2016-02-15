@@ -13,7 +13,8 @@ MessageItemContainer = require './message-item-container'
  WorkspaceStore,
  ChangeLabelsTask,
  ComponentRegistry,
- ChangeStarredTask} = require("nylas-exports")
+ ChangeStarredTask,
+ SearchableComponentMaker} = require("nylas-exports")
 
 {Spinner,
  RetinaImg,
@@ -414,4 +415,4 @@ class MessageList extends React.Component
     currentThread: MessageStore.thread()
     loading: MessageStore.itemsLoading()
 
-module.exports = MessageList
+module.exports = SearchableComponentMaker.extend(MessageList)
