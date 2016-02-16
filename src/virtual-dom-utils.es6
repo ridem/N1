@@ -1,18 +1,24 @@
 import _ from 'underscore'
 import React from 'react'
 
-const noop = (element) => {return element}
-
-class VirtualTreeWalker {
-  constructor(root, filter) {
-    this.root = root;
-    this.filter = filter;
-    this.currentNode = this.root;
-  }
-
-}
-
 const VirtualDOMUtils = {
+  some(rootElement, testFn) {
+    for (const element of VirtualDOMUtils.walk(rootElement)) {
+      if (testFn(element)) {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  /**
+   * Clones the element
+   */
+  transform(element, transformer = (el)=>el) {
+    let newProps = {}
+    let newChildren = []
+    React.cloneElement(element, newProps, newChildren)
+  },
 
   *walk(element) {
     yield element;
@@ -20,7 +26,7 @@ const VirtualDOMUtils = {
       const children = element.props.children;
       if (!children) {
         return
-      } else if (children.constructor.name === "String") {
+      } else if (_.isString(children)) {
         yield children
       } else if (children.length > 0) {
         for (let i = 0; i < children.length; i++) {
@@ -35,23 +41,6 @@ const VirtualDOMUtils = {
       }
     }
     return
-  },
-
-  /**
-   * Clones the element
-   */
-  transform(element, transformer = noop) {
-    if (React.isValidElement(element)) {
-      const newChildren = []
-      const children = element.props.children;
-      if (children && children.length > 0) {
-        for (let i = 0; i < element.props.children.length; i++) {
-          child = children[i]
-        }
-      }
-      return React.cloneElement(element, newProps, ...newChildren)
-    }
-    return element;
   },
 }
 export default VirtualDOMUtils

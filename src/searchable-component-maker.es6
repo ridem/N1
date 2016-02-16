@@ -1,5 +1,6 @@
 import _ from 'underscore'
 import React from 'react'
+import {VirtualDOMUtils} from 'nylas-exports'
 // import SearchableComponentStore from './flux/stores/searchable-component-store'
 
 class SearchableComponent {
@@ -22,6 +23,10 @@ class SearchableComponent {
       // React.children
       // const newChildren = this.cloneAndModify(vDOM.props.children);
       // const newvDOM = this.cloneAndModify(vDOM)
+
+      const walker = VirtualDOMUtils.walk(vDOM)
+      walker.next()
+
       console.log(vDOM);
       return vDOM
     }
