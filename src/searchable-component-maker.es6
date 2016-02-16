@@ -21,8 +21,8 @@ class SearchableComponent {
       // console.log(vDOM);
       // React.children
       // const newChildren = this.cloneAndModify(vDOM.props.children);
-      const newvDOM = this.cloneAndModify(vDOM)
-      console.log(newvDOM);
+      // const newvDOM = this.cloneAndModify(vDOM)
+      console.log(vDOM);
       return vDOM
     }
   }
