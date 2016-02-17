@@ -11,13 +11,25 @@ const VirtualDOMUtils = {
     return false;
   },
 
+
+  /**
+   * Returns the update path to nodes matching a given function.
+   * https://facebook.github.io/react/docs/update.html
+   */
+  updateTree(elementsToUpdate=[]) {
+    // for (element of elementsToUpdate) {
+    //   // Fix the element, then traverse up the tree re-cloning parents.
+    // }
+  }
+
   /**
    * Clones the element
    */
   transform(element, transformer = (el)=>el) {
     let newProps = {}
     let newChildren = []
-    React.cloneElement(element, newProps, newChildren)
+    newChildren = element.props.children
+    const newEl = React.cloneElement(element, newProps, newChildren);
   },
 
   *walk(element) {

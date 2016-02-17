@@ -16,19 +16,42 @@ class SearchableComponent {
     if (superMethod) superMethod.apply(this, args)
   }
 
+  _matchesSearch(vDOM) {
+    return VirtualDOMUtils.some(vDOM, (element) => {
+      if (typeof element === "string") {
+        // TODO
+        return false
+      }
+    })
+  }
+
+  _highlightSearch(vDOM) {
+    // TODO
+  }
+
   render(superMethod, ...args) {
     if (superMethod) {
-      const vDOM = superMethod.apply(this, args)
+      const vDOM = superMethod.apply(this, args);
+      if (this._matchesSearch(vDOM)) {
+        return this._highlightSearch(vDOM)
+      }
+      return vDOM
       // console.log(vDOM);
       // React.children
       // const newChildren = this.cloneAndModify(vDOM.props.children);
       // const newvDOM = this.cloneAndModify(vDOM)
 
-      const walker = VirtualDOMUtils.walk(vDOM)
-      walker.next()
-
-      console.log(vDOM);
-      return vDOM
+      // const newDOM = React.addons.update(vDOM, {});
+      // const newDOM = React.cloneElement(vDOM);
+      // console.log(vDOM, newDOM);
+      // console.log(vDOM === newDOM); // false
+      // console.log(vDOM.props.children === newDOM.props.children); // true
+      // return newDOM;
+      // const walker = VirtualDOMUtils.walk(vDOM);
+      // walker.next();
+      //
+      // console.log(vDOM);
+      // return vDOM
     }
   }
 
@@ -72,6 +95,12 @@ class SearchableComponent {
  */
 export default class SearchableComponentMaker {
   static extend(component) {
+
+    let context = component.contextTypes || {}
+    component.contextTypes = Object.assign(context, {
+      searchTerm: React.PropTypes.string
+    });
+
     const proto = SearchableComponent.prototype
     for (const propName of Object.getOwnPropertyNames(proto)) {
       if (propName === "constructor") continue;
