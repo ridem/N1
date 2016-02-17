@@ -15,25 +15,30 @@ class SearchableComponent {
     if (superMethod) superMethod.apply(this, args);
   }
 
+  _searchRE() {
+    let re;
+    if (/^\/.+\/$/.test(this.context.searchTerm)) {
+      // Looks like regex
+      re = new RegExp(this.context.searchTerm.slice(1, this.context.searchTerm.length - 1), 'gi');
+    } else {
+      re = new RegExp(Utils.escapeRegExp(this.context.searchTerm), "ig");
+    }
+    return re
+  }
+
   _matchesSearch(vDOM) {
     if ((this.context.searchTerm || "").length === 0) {
       return false;
     }
     return VirtualDOMUtils.some(vDOM, (element) => {
       if (typeof element === "string") {
-        if (/^\/.+\/$/.test(this.context.searchTerm)) {
-          // Looks like regex
-          return re.test(element)
-        } else {
-          const re = new RegExp(Utils.escapeRegExp(this.context.searchTerm), "ig");
-          return re.test(element)
-        }
+        return this._searchRE().test(element)
       }
     })
   }
 
   _highlightSearch(vDOM) {
-    // TODO
+    React.cloneElement(vDOM)
   }
 
   render(superMethod, ...args) {
