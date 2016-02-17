@@ -1,26 +1,33 @@
 import _ from 'underscore'
 import React from 'react'
-import {VirtualDOMUtils} from 'nylas-exports'
-// import SearchableComponentStore from './flux/stores/searchable-component-store'
+import {Utils, VirtualDOMUtils} from 'nylas-exports'
 
 class SearchableComponent {
   componentWillMount(superMethod, ...args) {
-    if (superMethod) superMethod.apply(this, args)
+    if (superMethod) superMethod.apply(this, args);
   }
 
   componentWillUnmount(superMethod, ...args) {
-    if (superMethod) superMethod.apply(this, args)
+    if (superMethod) superMethod.apply(this, args);
   }
 
   componentDidUpdate(superMethod, ...args) {
-    if (superMethod) superMethod.apply(this, args)
+    if (superMethod) superMethod.apply(this, args);
   }
 
   _matchesSearch(vDOM) {
+    if ((this.context.searchTerm || "").length === 0) {
+      return false;
+    }
     return VirtualDOMUtils.some(vDOM, (element) => {
       if (typeof element === "string") {
-        // TODO
-        return false
+        if (/^\/.+\/$/.test(this.context.searchTerm)) {
+          // Looks like regex
+          return re.test(element)
+        } else {
+          const re = new RegExp(Utils.escapeRegExp(this.context.searchTerm), "ig");
+          return re.test(element)
+        }
       }
     })
   }
@@ -95,10 +102,9 @@ class SearchableComponent {
  */
 export default class SearchableComponentMaker {
   static extend(component) {
-
-    let context = component.contextTypes || {}
+    const context = component.contextTypes || {}
     component.contextTypes = Object.assign(context, {
-      searchTerm: React.PropTypes.string
+      searchTerm: React.PropTypes.string,
     });
 
     const proto = SearchableComponent.prototype
