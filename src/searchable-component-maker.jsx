@@ -174,8 +174,9 @@ class SearchableComponent {
    *      " world"
    */
   _removeMatchesAndNormalize(element) {
-    const newChildren = [];
+    let newChildren = [];
     let strAccumulator = [];
+
     const resetAccumulator = () => {
       if (strAccumulator.length > 0) {
         newChildren.push(strAccumulator.join(''));
@@ -192,17 +193,27 @@ class SearchableComponent {
         children = element.props.children;
       }
 
-      for (let i = 0; i < children.length; i++) {
-        const child = children[i];
-        if (typeof child === "string") {
-          strAccumulator.push(child)
-        } else if (this._isSearchElement(child)) {
-          resetAccumulator();
-          newChildren.push(child.props.children);
-        } else {
-          resetAccumulator();
-          newChildren.push(this._removeMatchesAndNormalize(child));
+      if (!children) {
+        newChildren = null
+      } else if (React.isValidElement(children)) {
+        newChildren = children
+      } else if (typeof children === "string") {
+        strAccumulator.push(children)
+      } else if (children.length > 0) {
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i];
+          if (typeof child === "string") {
+            strAccumulator.push(child)
+          } else if (this._isSearchElement(child)) {
+            resetAccumulator();
+            newChildren.push(child.props.children);
+          } else {
+            resetAccumulator();
+            newChildren.push(this._removeMatchesAndNormalize(child));
+          }
         }
+      } else {
+        newChildren = children
       }
 
       resetAccumulator();
@@ -424,13 +435,7 @@ class SearchableComponent {
         } else {
           newChildren = this._highlightSearch(children, matchNodeMap)
         }
-      } else if (_.isString(children)) {
-        if (matchNode && matchNode.childOffset === 0) {
-          newChildren = matchNode.newChildren
-        } else {
-          newChildren = children
-        }
-      } else if (children.length > 0) {
+      } else if (!_.isString(children) && children.length > 0) {
         for (let i = 0; i < children.length; i++) {
           const child = children[i];
           if (matchNode && matchNode.childOffset === i) {
@@ -440,7 +445,11 @@ class SearchableComponent {
           }
         }
       } else {
-        newChildren = children
+        if (matchNode && matchNode.childOffset === 0) {
+          newChildren = matchNode.newChildren
+        } else {
+          newChildren = children
+        }
       }
 
       if (_.isArray(element)) {
@@ -455,8 +464,9 @@ class SearchableComponent {
     if (superMethod) {
       const vDOM = superMethod.apply(this, args);
       if (this._matchesSearch(vDOM)) {
-        const matchNodeMap = this._getElementsWithNewMatchNodes(vDOM);
-        return this._highlightSearch(vDOM, matchNodeMap)
+        const normalizedDOM = this._removeMatchesAndNormalize(vDOM)
+        const matchNodeMap = this._getElementsWithNewMatchNodes(normalizedDOM);
+        return this._highlightSearch(normalizedDOM, matchNodeMap)
       }
       return vDOM
       // console.log(vDOM);
