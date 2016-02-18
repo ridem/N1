@@ -2,14 +2,14 @@ import _ from 'underscore'
 import React from 'react'
 
 const VirtualDOMUtils = {
-  some(rootElement, testFn) {
-    for (const element of VirtualDOMUtils.walk(rootElement)) {
-      if (testFn(element)) {
-        return true;
-      }
-    }
-    return false;
-  },
+  // some(rootElement, testFn) {
+  //   for (const element of VirtualDOMUtils.walk(rootElement)) {
+  //     if (testFn(element)) {
+  //       return true;
+  //     }
+  //   }
+  //   return false;
+  // },
 
 
   /**
@@ -25,31 +25,31 @@ const VirtualDOMUtils = {
   /**
    * Clones the element
    */
-  transform(element, transformer = (el)=>el) {
+  transform(element, transformer) {
     let newProps = {}
     let newChildren = []
-    newChildren = element.props.children
+    {children, props} = transformer(element)
     const newEl = React.cloneElement(element, newProps, newChildren);
   },
 
-  *walk(element) {
-    yield element;
+  *walk(element, parentNode, childOffset) {
+    yield {element, parentNode, childOffset};
     if (React.isValidElement(element)) {
       const children = element.props.children;
       if (!children) {
         return
       } else if (_.isString(children)) {
-        yield children
+        yield {element: children, parentNode: element, childOffset: 0}
       } else if (children.length > 0) {
         for (let i = 0; i < children.length; i++) {
-          yield *this.walk(children[i])
+          yield *this.walk(children[i], element, i)
         }
       } else {
-        yield *this.walk(children)
+        yield *this.walk(children, element, 0)
       }
     } else if (_.isArray(element)) {
       for (let i = 0; i < element.length; i++) {
-        yield *this.walk(element[i])
+        yield *this.walk(element[i], element, i)
       }
     }
     return
