@@ -236,7 +236,7 @@ class SearchableComponent {
   _getElementsWithNewMatchNodes(rootNode) {
     const fullStrings = this._buildNormalizedText(rootNode)
 
-    const modifiedElements = {}
+    const modifiedElements = new Map()
     // For each match, we return an array of new elements.
     for (const fullString of fullStrings) {
       const matches = this._matchesFromFullString(fullString);
@@ -253,7 +253,7 @@ class SearchableComponent {
               slicePoints);
 
           textElement.newChildren = newChildren;
-          modifiedElements[textElement.parentNode.key] = textElement
+          modifiedElements.set(textElement.parentNode, textElement)
         }
       }
     }
@@ -296,6 +296,17 @@ class SearchableComponent {
       // else continue for inline elements
     }
     return fullStrings
+  }
+
+  _looksLikeBlockElement(element) {
+    if (!element) { return false; }
+    const blockTypes = ["br", "p", "blockquote", "div", "table", "iframe"]
+    if (_.isFunction(element.type)) {
+      return true
+    } else if (blockTypes.indexOf(element.type) >= 0) {
+      return true
+    }
+    return false
   }
 
   /**
@@ -351,13 +362,13 @@ class SearchableComponent {
         slicePoints.push([0, text.length])
       } else if (matchStart >= textElStart && matchEnd < textElEnd) {
         // match is completely inside of textEl
-        slicePoints.push([matchStart - textElStart, textElEnd - matchEnd])
+        slicePoints.push([matchStart - textElStart, matchEnd - textElStart])
       } else if (matchEnd >= textElStart && matchEnd < textElEnd) {
         // match started in a previous el but ends in this one
-        slicePoints.push([0, matchEnd])
+        slicePoints.push([0, matchEnd - textElStart])
       } else if (matchStart >= textElStart && matchStart < textElEnd) {
         // match starts in this el but ends in a future one
-        slicePoints.push([textElEnd - matchStart, textElEnd])
+        slicePoints.push([matchStart - textElStart, text.length])
       } else {
         // match is not in this element
         continue;
@@ -392,9 +403,9 @@ class SearchableComponent {
     return slices;
   }
 
-  _highlightSearch(element, matchNodes) {
+  _highlightSearch(element, matchNodeMap) {
     if (React.isValidElement(element) || _.isArray(element)) {
-      const newChildren = []
+      let newChildren = []
       let children;
 
       if (_.isArray(element)) {
@@ -403,15 +414,33 @@ class SearchableComponent {
         children = element.props.children;
       }
 
-      const matchNode = matchNodes[element.key]
+      const matchNode = matchNodeMap.get(element);
 
-      for (let i = 0; i < children.length; i++) {
-        const child = children[i];
-        if (matchNode && matchNode.childOffset === i) {
-          newChildren.push(matchNode.newChildren)
+      if (!children) {
+        newChildren = null
+      } else if (React.isValidElement(children)) {
+        if (matchNode && matchNode.childOffset === 0) {
+          newChildren = matchNode.newChildren
         } else {
-          newChildren.push(this._highlightSearch(child, matchNodes))
+          newChildren = this._highlightSearch(children, matchNodeMap)
         }
+      } else if (_.isString(children)) {
+        if (matchNode && matchNode.childOffset === 0) {
+          newChildren = matchNode.newChildren
+        } else {
+          newChildren = children
+        }
+      } else if (children.length > 0) {
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i];
+          if (matchNode && matchNode.childOffset === i) {
+            newChildren.push(matchNode.newChildren)
+          } else {
+            newChildren.push(this._highlightSearch(child, matchNodeMap))
+          }
+        }
+      } else {
+        newChildren = children
       }
 
       if (_.isArray(element)) {
@@ -426,8 +455,8 @@ class SearchableComponent {
     if (superMethod) {
       const vDOM = superMethod.apply(this, args);
       if (this._matchesSearch(vDOM)) {
-        const matchNodes = this._getElementsWithNewMatchNodes(vDOM);
-        return this._highlightSearch(vDOM, matchNodes)
+        const matchNodeMap = this._getElementsWithNewMatchNodes(vDOM);
+        return this._highlightSearch(vDOM, matchNodeMap)
       }
       return vDOM
       // console.log(vDOM);
@@ -494,11 +523,15 @@ export default class SearchableComponentMaker {
       searchTerm: React.PropTypes.string,
     });
 
-    const proto = SearchableComponent.prototype
+    const proto = SearchableComponent.prototype;
     for (const propName of Object.getOwnPropertyNames(proto)) {
-      if (propName === "constructor") continue;
       const origMethod = component.prototype[propName]
-      component.prototype[propName] = _.partial(proto[propName], origMethod)
+      if (origMethod) {
+        if (propName === "constructor") { continue }
+        component.prototype[propName] = _.partial(proto[propName], origMethod)
+      } else {
+        component.prototype[propName] = proto[propName]
+      }
     }
     return component
   }
