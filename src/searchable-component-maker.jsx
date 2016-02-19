@@ -13,6 +13,76 @@ class SearchMatch extends React.Component {
   }
 }
 
+class UnifiedElement() {
+
+}
+
+class VirtualElement() {
+
+}
+
+class RealElement() {
+
+}
+
+class UnifiedDOMParser {
+
+  /**
+   * OVERRIDE ME
+   */
+  getWalker() { }
+
+  isTextNode() { }
+
+  textNodeLength() { }
+
+  looksLikeBlockElement() { }
+
+  buildNormalizedText(dom) {
+    const walker = this.getWalker(dom);
+
+    const fullStrings = [];
+    let textElementAccumulator = [];
+    let stringIndex = 0;
+
+    for (const node of walker) {
+      if (this.isTextNode(node)) {
+        node.fullStringIndex = stringIndex
+        textElementAccumulator.push(node);
+        stringIndex += this.textNodeLength(node);
+      } else if (this.looksLikeBlockElement(node)) {
+        if (textElementAccumulator.length > 0) {
+          fullStrings.push(textElementAccumulator);
+          textElementAccumulator = [];
+          stringIndex = 0;
+        }
+      }
+      // else continue for inline elements
+    }
+    return fullStrings
+  }
+
+  matchesSearch(dom, searchTerm) {
+    if ((searchTerm || "").length === 0) { return false; }
+    const fullStrings = this._buildNormalizedText(dom)
+    // For each match, we return an array of new elements.
+    for (const fullString of fullStrings) {
+      const matches = this._matchesFromFullString(fullString);
+      if (matches.length > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+class VirtualDOMParser extends UnifiedDOMParser {
+}
+
+class RealDOMParser extends UnifiedDOMParser {
+
+}
+
 class SearchableComponent {
   componentDidMount(superMethod, ...args) {
     if (superMethod) superMethod.apply(this, args);
@@ -560,6 +630,10 @@ export default class SearchableComponentMaker {
       }
     }
     return component
+  }
+
+  static searchInIframe(contentDocument) {
+    return contentDocument;
   }
 }
 

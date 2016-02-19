@@ -1,5 +1,7 @@
 React = require 'react'
-{RegExpUtils}= require 'nylas-exports'
+{RegExpUtils,
+ SearchableComponentMaker,
+ SearchableComponentStore}= require 'nylas-exports'
 url = require 'url'
 _ = require "underscore"
 
@@ -27,10 +29,12 @@ class EventedIFrame extends React.Component
     <iframe seamless="seamless" {...@props} />
 
   componentDidMount: =>
+    @_searchUsub = SearchableComponentStore.listen @_onSearchTermChange
     @_subscribeToIFrameEvents()
 
   componentWillUnmount: =>
     @_unsubscribeFromIFrameEvents()
+    @_searchUsub()
 
   ###
   Public: Call this method if you replace the contents of the iframe's document.
@@ -39,6 +43,10 @@ class EventedIFrame extends React.Component
   documentWasReplaced: =>
     @_unsubscribeFromIFrameEvents()
     @_subscribeToIFrameEvents()
+
+  _onSearchTermChange: =>
+    node = React.findDOMNode(@)
+    doc = node.contentDocument
 
   _unsubscribeFromIFrameEvents: =>
     node = React.findDOMNode(@)
