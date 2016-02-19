@@ -1,6 +1,7 @@
 import _ from 'underscore'
 import React from 'react'
 import {Utils, VirtualDOMUtils} from 'nylas-exports'
+import SearchableComponentStore from './flux/stores/searchable-component-store'
 
 class SearchMatch extends React.Component {
   static displayName = "SearchMatch";
@@ -13,21 +14,32 @@ class SearchMatch extends React.Component {
 }
 
 class SearchableComponent {
-  componentWillMount(superMethod, ...args) {
+  componentDidMount(superMethod, ...args) {
     if (superMethod) superMethod.apply(this, args);
+    this._searchableListener = SearchableComponentStore.listen(() => {this._onSearchableComponentStoreChange()})
+  }
+
+  _onSearchableComponentStoreChange() {
+    this.setState({
+      __searchTerm: SearchableComponentStore.getSearchTerm(),
+    })
   }
 
   componentWillUnmount(superMethod, ...args) {
     if (superMethod) superMethod.apply(this, args);
+    this._searchableListener()
   }
 
   componentDidUpdate(superMethod, ...args) {
     if (superMethod) superMethod.apply(this, args);
   }
 
+  _isSearchElement(element) {
+    return element.type === SearchMatch
+  }
+
   _searchRE() {
-    // const searchTerm = this.context.searchTerm;
-    const searchTerm = "the"
+    const searchTerm = this.state.__searchTerm || "";
     let re;
     if (/^\/.+\/$/.test(searchTerm)) {
       // Looks like regex
@@ -39,6 +51,9 @@ class SearchableComponent {
   }
 
   _matchesSearch(vDOM) {
+    if ((this.state.__searchTerm || "").length === 0) {
+      return false
+    }
     const fullStrings = this._buildNormalizedText(vDOM)
     // For each match, we return an array of new elements.
     for (const fullString of fullStrings) {
@@ -528,10 +543,11 @@ class SearchableComponent {
  */
 export default class SearchableComponentMaker {
   static extend(component) {
-    const context = component.contextTypes || {}
-    component.contextTypes = Object.assign(context, {
-      searchTerm: React.PropTypes.string,
-    });
+    // const context = component.contextTypes || {}
+    // component.contextTypes = Object.assign(context, {
+    //   searchTerm: React.PropTypes.string,
+    // });
+    // console.log(component.contextTypes)
 
     const proto = SearchableComponent.prototype;
     for (const propName of Object.getOwnPropertyNames(proto)) {

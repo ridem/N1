@@ -14,6 +14,7 @@ MessageItemContainer = require './message-item-container'
  ChangeLabelsTask,
  ComponentRegistry,
  ChangeStarredTask,
+ SearchableComponentStore,
  SearchableComponentMaker} = require("nylas-exports")
 
 {Spinner,
@@ -65,8 +66,15 @@ class MessageList extends React.Component
     minWidth: 500
     maxWidth: 999999
 
+  # @childContextTypes:
+  #   searchTerm: React.PropTypes.string
+  #
+  # getChildContext: =>
+  #   searchTerm: @state.searchTerm
+
   constructor: (@props) ->
     @state = @_getStateFromStores()
+    @state.searchTerm = ""
     @state.minified = true
     @_draftScrollInProgress = false
     @MINIFY_THRESHOLD = 3
@@ -74,9 +82,12 @@ class MessageList extends React.Component
   componentDidMount: =>
     @_unsubscribers = []
     @_unsubscribers.push MessageStore.listen @_onChange
+    # @searchID = Utils.generateTempId()
+    # SearchableComponentStore.registerSearchRegion(@searchId)
 
   componentWillUnmount: =>
     unsubscribe() for unsubscribe in @_unsubscribers
+    # SearchableComponentStore.unregisterSearchRegion(@searchId)
 
   shouldComponentUpdate: (nextProps, nextState) =>
     not Utils.isEqualReact(nextProps, @props) or
@@ -192,6 +203,7 @@ class MessageList extends React.Component
       "ready": not @state.loading
 
     <KeyCommandsRegion globalHandlers={@_keymapHandlers()}>
+      {@_renderMessageListSearch()}
       <div className="message-list" id="message-list">
         <ScrollRegion tabIndex="-1"
              className={wrapClass}
@@ -210,6 +222,13 @@ class MessageList extends React.Component
         <Spinner visible={@state.loading} />
       </div>
     </KeyCommandsRegion>
+
+  _renderMessageListSearch: ->
+    <input onChange={@_onSearchChange} value={@state.searchTerm}/>
+
+  _onSearchChange: (event) =>
+    @setState searchTerm: event.target.value
+    Actions.searchInMessages(event.target.value)
 
   _renderSubject: ->
     subject = @state.currentThread.subject
