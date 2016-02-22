@@ -12,8 +12,8 @@ export default class RealDOMParser extends UnifiedDOMParser {
     return
   }
 
-  getWalker(dom) {
-    const treeWalker = document.createTreeWalker(dom);
+  getWalker(dom, filter) {
+    const treeWalker = document.createTreeWalker(dom, filter);
     return this._genDOMWalker(treeWalker);
   }
 
@@ -61,8 +61,11 @@ export default class RealDOMParser extends UnifiedDOMParser {
   }
 
   highlightSearch(element, matchNodeMap) {
-    const walker = this.getWalker(element);
-    for (const textNode of walker) {
+    const walker = this.getWalker(element, NodeFilter.SHOW_TEXT);
+    // We have to expand the whole generator because we're mutating in
+    // place
+    const textNodes = [...walker]
+    for (const textNode of textNodes) {
       if (matchNodeMap.has(textNode)) {
         const {originalTextNode, newTextNodes} = matchNodeMap.get(textNode);
         const frag = document.createDocumentFragment();

@@ -139,8 +139,8 @@ export default class UnifiedDOMParser {
     let sliceOffset = 0;
     let remainingText = text;
     for (let [sliceStart, sliceEnd] of slicePoints) {
-      sliceStart = sliceStart + sliceOffset;
-      sliceEnd = sliceEnd + sliceOffset;
+      sliceStart = sliceStart - sliceOffset;
+      sliceEnd = sliceEnd - sliceOffset;
       const before = remainingText.slice(0, sliceStart);
       if (before.length > 0) {
         newTextNodes.push(this.createTextNode(before))
