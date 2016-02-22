@@ -174,7 +174,7 @@ class NylasExports
   @load "SoundRegistry", 'sound-registry'
   @load "NativeNotifications", 'native-notifications'
 
-  @load "SearchableComponentMaker", 'searchable-component-maker'
+  @load "SearchableComponentMaker", 'searchable-components/searchable-component-maker'
 
   @load "QuotedHTMLTransformer", 'services/quoted-html-transformer'
   @load "QuotedPlainTextTransformer", 'services/quoted-plain-text-transformer'

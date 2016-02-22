@@ -13,24 +13,24 @@ export default class RealDOMParser extends UnifiedDOMParser {
   }
 
   getWalker(dom) {
-    const treeWalker = document.createTreeWalker(dom, NodeFilter.SHOW_TEXT);
+    const treeWalker = document.createTreeWalker(dom);
     return this._genDOMWalker(treeWalker);
   }
 
-  isTextNode({element}) {
-    return element.nodeType === Node.TEXT_NODE
+  isTextNode(node) {
+    return node.nodeType === Node.TEXT_NODE
   }
 
-  textNodeLength({element}) {
-    return (element.data || "").length
+  textNodeLength(textNode) {
+    return (textNode.data || "").length
   }
 
   textNodeContents(textNode) {
     return (textNode.data)
   }
 
-  looksLikeBlockElement({element}) {
-    return DOMUtils.looksLikeBlockElement(element)
+  looksLikeBlockElement(node) {
+    return DOMUtils.looksLikeBlockElement(node)
   }
 
   getRawFullString(fullString) {

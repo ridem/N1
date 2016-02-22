@@ -1,6 +1,6 @@
 import _ from 'underscore'
 import VirtualDOMParser from './virtual-dom-parser'
-import SearchableComponentStore from './flux/stores/searchable-component-store'
+import SearchableComponentStore from '../flux/stores/searchable-component-store'
 
 class SearchableComponent {
   componentDidMount(superMethod, ...args) {

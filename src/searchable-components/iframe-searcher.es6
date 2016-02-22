@@ -8,7 +8,7 @@ export default class IFrameSearcher {
     const parser = new RealDOMParser()
     if (parser.matchesSearch(doc, searchTerm)) {
       parser.removeMatchesAndNormalize(doc)
-      const matchNodeMap = parser.getElementsWithNewMatchNodes(doc)
+      const matchNodeMap = parser.getElementsWithNewMatchNodes(doc, searchTerm)
       parser.highlightSearch(doc, matchNodeMap)
     }
   }

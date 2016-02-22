@@ -49,7 +49,7 @@ class EventedIFrame extends React.Component
   _onSearchTermChange: =>
     return unless @props.searchable
     node = React.findDOMNode(@)
-    doc = node.contentDocument
+    doc = node.contentDocument?.body ? node.contentDocument
     searchTerm = SearchableComponentStore.getSearchTerm()
     IFrameSearcher.highlightSearchInDocument(searchTerm, doc)
 
