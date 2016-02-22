@@ -36,6 +36,9 @@ export default class UnifiedDOMParser {
       }
       // else continue for inline elements
     }
+    if (textElementAccumulator.length > 0) {
+      fullStrings.push(textElementAccumulator);
+    }
     return fullStrings
   }
   // OVERRIDE ME

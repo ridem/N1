@@ -10,6 +10,8 @@ export default class IFrameSearcher {
       parser.removeMatchesAndNormalize(doc)
       const matchNodeMap = parser.getElementsWithNewMatchNodes(doc, searchTerm)
       parser.highlightSearch(doc, matchNodeMap)
+    } else {
+      parser.removeMatchesAndNormalize(doc)
     }
   }
 }

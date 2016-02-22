@@ -39,6 +39,7 @@ export default class RealDOMParser extends UnifiedDOMParser {
 
   removeMatchesAndNormalize(element) {
     const matches = element.querySelectorAll('search-match');
+    if (matches.length === 0) { return null }
     for (let i = 0; i < matches.length; i++) {
       const match = matches[i];
       DOMUtils.unwrapNode(match)
