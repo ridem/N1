@@ -13,30 +13,20 @@ class SearchMatch extends React.Component {
   }
 }
 
-class UnifiedElement() {
-
-}
-
-class VirtualElement() {
-
-}
-
-class RealElement() {
-
-}
-
 class UnifiedDOMParser {
 
-  /**
-   * OVERRIDE ME
-   */
-  getWalker() { }
-
-  isTextNode() { }
-
-  textNodeLength() { }
-
-  looksLikeBlockElement() { }
+  matchesSearch(dom, searchTerm) {
+    if ((searchTerm || "").length === 0) { return false; }
+    const fullStrings = this.buildNormalizedText(dom)
+    // For each match, we return an array of new elements.
+    for (const fullString of fullStrings) {
+      const matches = this.matchesFromFullString(fullString, searchTerm);
+      if (matches.length > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   buildNormalizedText(dom) {
     const walker = this.getWalker(dom);
@@ -61,27 +51,292 @@ class UnifiedDOMParser {
     }
     return fullStrings
   }
+  // OVERRIDE ME
+  getWalker() { }
+  isTextNode() { }
+  textNodeLength() { }
+  looksLikeBlockElement() { }
+  textNodeContents() {}
 
-  matchesSearch(dom, searchTerm) {
-    if ((searchTerm || "").length === 0) { return false; }
-    const fullStrings = this._buildNormalizedText(dom)
+  matchesFromFullString(fullString, searchTerm) {
+    const re = this.searchRE(searchTerm);
+    const rawString = this.getRawFullString(fullString)
+    const matches = []
+    let match = re.exec(rawString);
+    while (match) {
+      const matchStart = match.index;
+      const matchEnd = match.index + match[0].length;
+      matches.push([matchStart, matchEnd])
+      match = re.exec(rawString)
+    }
+    return matches;
+  }
+  getRawFullString() { }
+
+  searchRE(searchTerm) {
+    let re;
+    if (/^\/.+\/$/.test(searchTerm)) {
+      // Looks like regex
+      re = new RegExp(searchTerm.slice(1, searchTerm.length - 1), 'gi');
+    } else {
+      re = new RegExp(Utils.escapeRegExp(searchTerm), "ig");
+    }
+    return re
+  }
+
+  // OVERRIDE ME
+  removeMatchesAndNormalize() { }
+
+  getElementsWithNewMatchNodes(rootNode, searchTerm) {
+    const fullStrings = this.buildNormalizedText(rootNode)
+
+    const modifiedElements = new Map()
     // For each match, we return an array of new elements.
     for (const fullString of fullStrings) {
-      const matches = this._matchesFromFullString(fullString);
-      if (matches.length > 0) {
-        return true;
+      const matches = this.matchesFromFullString(fullString, searchTerm);
+
+      if (matches.length === 0) {
+        continue;
+      }
+
+      for (const textNode of fullString) {
+        const slicePoints = this.slicePointsForMatches(textNode,
+            matches);
+        if (slicePoints.length > 0) {
+          const {key, originalTextNode, newTextNodes} = this.slicedTextElement(textNode, slicePoints);
+          modifiedElements.set(key, {originalTextNode, newTextNodes})
+        }
       }
     }
-    return false;
+
+    return modifiedElements;
   }
+
+  slicePointsForMatches(textElement, matches) {
+    const textElStart = textElement.fullStringIndex;
+    const textLength = this.textNodeLength(textElement);
+    const textElEnd = textElement.fullStringIndex + textLength;
+
+    const slicePoints = [];
+
+    for (const [matchStart, matchEnd] of matches) {
+      if (matchStart < textElStart && matchEnd >= textElEnd) {
+        // textEl is completely inside of match
+        slicePoints.push([0, textLength])
+      } else if (matchStart >= textElStart && matchEnd < textElEnd) {
+        // match is completely inside of textEl
+        slicePoints.push([matchStart - textElStart, matchEnd - textElStart])
+      } else if (matchEnd >= textElStart && matchEnd < textElEnd) {
+        // match started in a previous el but ends in this one
+        slicePoints.push([0, matchEnd - textElStart])
+      } else if (matchStart >= textElStart && matchStart < textElEnd) {
+        // match starts in this el but ends in a future one
+        slicePoints.push([matchStart - textElStart, textLength])
+      } else {
+        // match is not in this element
+        continue;
+      }
+    }
+    return slicePoints;
+  }
+
+  /**
+   * Given some text element and a slice point, it will split that text
+   * element at the slice points and return the new nodes as a value,
+   * keyed by a way to find that insertion point in the DOM.
+   */
+  slicedTextElement(textNode, slicePoints) {
+    const key = this.textNodeKey(textNode)
+    const text = this.textNodeContents(textNode)
+    const newTextNodes = [];
+    let sliceOffset = 0;
+    let remainingText = text;
+    for (let [sliceStart, sliceEnd] of slicePoints) {
+      sliceStart = sliceStart + sliceOffset;
+      sliceEnd = sliceEnd + sliceOffset;
+      const before = remainingText.slice(0, sliceStart);
+      if (before.length > 0) {
+        newTextNodes.push(this.createTextNode(before))
+      }
+
+      const matchText = remainingText.slice(sliceStart, sliceEnd);
+      if (matchText.length > 0) {
+        newTextNodes.push(this.createMatchNode(matchText));
+      }
+
+      remainingText = remainingText.slice(sliceEnd, remainingText.length)
+      sliceOffset += sliceEnd
+    }
+    newTextNodes.push(this.createTextNode(remainingText));
+    return {
+      key: key,
+      originalTextNode: textNode,
+      newTextNodes: newTextNodes,
+    };
+  }
+  // OVERRIDE ME
+  createTextNode() {}
+  createMatchNode() {}
+  textNodeKey() {}
+
+  // OVERRIDE ME
+  highlightSearch() { }
 }
 
 class VirtualDOMParser extends UnifiedDOMParser {
+  getWalker(dom) {
+    return VirtualDOMUtils.walk(dom);
+  }
+
+  isTextNode({element}) {
+    return (typeof element === "string")
+  }
+
+  textNodeLength({element}) {
+    return element.length
+  }
+
+  textNodeContents(textElement) {
+    return textElement.element
+  }
+
+  looksLikeBlockElement({element}) {
+    if (!element) { return false; }
+    const blockTypes = ["br", "p", "blockquote", "div", "table", "iframe"]
+    if (_.isFunction(element.type)) {
+      return true
+    } else if (blockTypes.indexOf(element.type) >= 0) {
+      return true
+    }
+    return false
+  }
+
+  getRawFullString(fullString) {
+    return _.pluck(fullString, "element").join('');
+  }
+
+  removeMatchesAndNormalize(element) {
+    let newChildren = [];
+    let strAccumulator = [];
+
+    const resetAccumulator = () => {
+      if (strAccumulator.length > 0) {
+        newChildren.push(strAccumulator.join(''));
+        strAccumulator = [];
+      }
+    }
+
+    if (React.isValidElement(element) || _.isArray(element)) {
+      let children;
+
+      if (_.isArray(element)) {
+        children = element;
+      } else {
+        children = element.props.children;
+      }
+
+      if (!children) {
+        newChildren = null
+      } else if (React.isValidElement(children)) {
+        newChildren = children
+      } else if (typeof children === "string") {
+        strAccumulator.push(children)
+      } else if (children.length > 0) {
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i];
+          if (typeof child === "string") {
+            strAccumulator.push(child)
+          } else if (this._isSearchElement(child)) {
+            resetAccumulator();
+            newChildren.push(child.props.children);
+          } else {
+            resetAccumulator();
+            newChildren.push(this.removeMatchesAndNormalize(child));
+          }
+        }
+      } else {
+        newChildren = children
+      }
+
+      resetAccumulator();
+
+      if (_.isArray(element)) {
+        return [newChildren];
+      }
+      return React.cloneElement(element, {}, newChildren)
+    }
+    return element;
+  }
+  _isSearchElement(element) {
+    return element.type === SearchMatch
+  }
+
+  createTextNode(rawText) {
+    return rawText
+  }
+  createMatchNode(rawText) {
+    return React.createElement(SearchMatch, {}, rawText)
+  }
+  textNodeKey(textElement) {
+    return textElement.parentNode
+  }
+
+  highlightSearch(element, matchNodeMap) {
+    if (React.isValidElement(element) || _.isArray(element)) {
+      let newChildren = []
+      let children;
+
+      if (_.isArray(element)) {
+        children = element;
+      } else {
+        children = element.props.children;
+      }
+
+      const matchNode = matchNodeMap.get(element);
+      let originalTextNode = null;
+      let newTextNodes = [];
+      if (matchNode) {
+        originalTextNode = matchNode.originalTextNode;
+        newTextNodes = matchNode.newTextNodes;
+      }
+
+      if (!children) {
+        newChildren = null
+      } else if (React.isValidElement(children)) {
+        if (originalTextNode && originalTextNode.childOffset === 0) {
+          newChildren = newTextNodes
+        } else {
+          newChildren = this.highlightSearch(children, matchNodeMap)
+        }
+      } else if (!_.isString(children) && children.length > 0) {
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i];
+          if (originalTextNode && originalTextNode.childOffset === i) {
+            newChildren.push(newTextNodes)
+          } else {
+            newChildren.push(this.highlightSearch(child, matchNodeMap))
+          }
+        }
+      } else {
+        if (originalTextNode && originalTextNode.childOffset === 0) {
+          newChildren = newTextNodes
+        } else {
+          newChildren = children
+        }
+      }
+
+      if (_.isArray(element)) {
+        return [newChildren];
+      }
+      return React.cloneElement(element, {}, newChildren)
+    }
+    return element;
+  }
+
 }
 
-class RealDOMParser extends UnifiedDOMParser {
-
-}
+// class RealDOMParser extends UnifiedDOMParser {
+// }
 
 class SearchableComponent {
   componentDidMount(superMethod, ...args) {
@@ -104,36 +359,36 @@ class SearchableComponent {
     if (superMethod) superMethod.apply(this, args);
   }
 
-  _isSearchElement(element) {
-    return element.type === SearchMatch
-  }
+  // _isSearchElement(element) {
+  //   return element.type === SearchMatch
+  // }
 
-  _searchRE() {
-    const searchTerm = this.state.__searchTerm || "";
-    let re;
-    if (/^\/.+\/$/.test(searchTerm)) {
-      // Looks like regex
-      re = new RegExp(searchTerm.slice(1, searchTerm.length - 1), 'gi');
-    } else {
-      re = new RegExp(Utils.escapeRegExp(searchTerm), "ig");
-    }
-    return re
-  }
+  // _searchRE() {
+  //   const searchTerm = this.state.__searchTerm || "";
+  //   let re;
+  //   if (/^\/.+\/$/.test(searchTerm)) {
+  //     // Looks like regex
+  //     re = new RegExp(searchTerm.slice(1, searchTerm.length - 1), 'gi');
+  //   } else {
+  //     re = new RegExp(Utils.escapeRegExp(searchTerm), "ig");
+  //   }
+  //   return re
+  // }
 
-  _matchesSearch(vDOM) {
-    if ((this.state.__searchTerm || "").length === 0) {
-      return false
-    }
-    const fullStrings = this._buildNormalizedText(vDOM)
-    // For each match, we return an array of new elements.
-    for (const fullString of fullStrings) {
-      const matches = this._matchesFromFullString(fullString);
-      if (matches.length > 0) {
-        return true;
-      }
-    }
-    return false;
-  }
+  // _matchesSearch(vDOM) {
+  //   if ((this.state.__searchTerm || "").length === 0) {
+  //     return false
+  //   }
+  //   const fullStrings = this._buildNormalizedText(vDOM)
+  //   // For each match, we return an array of new elements.
+  //   for (const fullString of fullStrings) {
+  //     const matches = this._matchesFromFullString(fullString);
+  //     if (matches.length > 0) {
+  //       return true;
+  //     }
+  //   }
+  //   return false;
+  // }
 
   /**
    * takes an element
@@ -258,58 +513,58 @@ class SearchableComponent {
    *    span
    *      " world"
    */
-  _removeMatchesAndNormalize(element) {
-    let newChildren = [];
-    let strAccumulator = [];
-
-    const resetAccumulator = () => {
-      if (strAccumulator.length > 0) {
-        newChildren.push(strAccumulator.join(''));
-        strAccumulator = [];
-      }
-    }
-
-    if (React.isValidElement(element) || _.isArray(element)) {
-      let children;
-
-      if (_.isArray(element)) {
-        children = element;
-      } else {
-        children = element.props.children;
-      }
-
-      if (!children) {
-        newChildren = null
-      } else if (React.isValidElement(children)) {
-        newChildren = children
-      } else if (typeof children === "string") {
-        strAccumulator.push(children)
-      } else if (children.length > 0) {
-        for (let i = 0; i < children.length; i++) {
-          const child = children[i];
-          if (typeof child === "string") {
-            strAccumulator.push(child)
-          } else if (this._isSearchElement(child)) {
-            resetAccumulator();
-            newChildren.push(child.props.children);
-          } else {
-            resetAccumulator();
-            newChildren.push(this._removeMatchesAndNormalize(child));
-          }
-        }
-      } else {
-        newChildren = children
-      }
-
-      resetAccumulator();
-
-      if (_.isArray(element)) {
-        return [newChildren];
-      }
-      return React.cloneElement(element, {}, newChildren)
-    }
-    return element;
-  }
+  // _removeMatchesAndNormalize(element) {
+  //   let newChildren = [];
+  //   let strAccumulator = [];
+  //
+  //   const resetAccumulator = () => {
+  //     if (strAccumulator.length > 0) {
+  //       newChildren.push(strAccumulator.join(''));
+  //       strAccumulator = [];
+  //     }
+  //   }
+  //
+  //   if (React.isValidElement(element) || _.isArray(element)) {
+  //     let children;
+  //
+  //     if (_.isArray(element)) {
+  //       children = element;
+  //     } else {
+  //       children = element.props.children;
+  //     }
+  //
+  //     if (!children) {
+  //       newChildren = null
+  //     } else if (React.isValidElement(children)) {
+  //       newChildren = children
+  //     } else if (typeof children === "string") {
+  //       strAccumulator.push(children)
+  //     } else if (children.length > 0) {
+  //       for (let i = 0; i < children.length; i++) {
+  //         const child = children[i];
+  //         if (typeof child === "string") {
+  //           strAccumulator.push(child)
+  //         } else if (this._isSearchElement(child)) {
+  //           resetAccumulator();
+  //           newChildren.push(child.props.children);
+  //         } else {
+  //           resetAccumulator();
+  //           newChildren.push(this._removeMatchesAndNormalize(child));
+  //         }
+  //       }
+  //     } else {
+  //       newChildren = children
+  //     }
+  //
+  //     resetAccumulator();
+  //
+  //     if (_.isArray(element)) {
+  //       return [newChildren];
+  //     }
+  //     return React.cloneElement(element, {}, newChildren)
+  //   }
+  //   return element;
+  // }
 
   /**
    * This looks through the virtual DOM and returns a hash of nodes that
@@ -329,33 +584,33 @@ class SearchableComponent {
    * of the textnode so we can find it again when we're updating the
    * virtual dom.
    */
-  _getElementsWithNewMatchNodes(rootNode) {
-    const fullStrings = this._buildNormalizedText(rootNode)
-
-    const modifiedElements = new Map()
-    // For each match, we return an array of new elements.
-    for (const fullString of fullStrings) {
-      const matches = this._matchesFromFullString(fullString);
-
-      if (matches.length === 0) {
-        continue;
-      }
-
-      for (const textElement of fullString) {
-        const slicePoints = this._slicePointsForMatches(textElement,
-            matches);
-        if (slicePoints.length > 0) {
-          const newChildren = this._slicedTextElement(textElement,
-              slicePoints);
-
-          textElement.newChildren = newChildren;
-          modifiedElements.set(textElement.parentNode, textElement)
-        }
-      }
-    }
-
-    return modifiedElements;
-  }
+  // _getElementsWithNewMatchNodes(rootNode) {
+  //   const fullStrings = this._buildNormalizedText(rootNode)
+  //
+  //   const modifiedElements = new Map()
+  //   // For each match, we return an array of new elements.
+  //   for (const fullString of fullStrings) {
+  //     const matches = this._matchesFromFullString(fullString);
+  //
+  //     if (matches.length === 0) {
+  //       continue;
+  //     }
+  //
+  //     for (const textElement of fullString) {
+  //       const slicePoints = this._slicePointsForMatches(textElement,
+  //           matches);
+  //       if (slicePoints.length > 0) {
+  //         const newChildren = this._slicedTextElement(textElement,
+  //             slicePoints);
+  //
+  //         textElement.newChildren = newChildren;
+  //         modifiedElements.set(textElement.parentNode, textElement)
+  //       }
+  //     }
+  //   }
+  //
+  //   return modifiedElements;
+  // }
 
   /**
    * Traverses a virtual DOM heirarchy and attempts to find and group
@@ -366,44 +621,44 @@ class SearchableComponent {
    * contiguous text may be split across multiple nodes and burried in
    * inline nodes (like strong, tags).
    */
-  _buildNormalizedText(rootNode) {
-    const walker = VirtualDOMUtils.walk(rootNode);
+  // _buildNormalizedText(rootNode) {
+  //   const walker = VirtualDOMUtils.walk(rootNode);
+  //
+  //   const fullStrings = [];
+  //   let textElementAccumulator = [];
+  //   let stringIndex = 0;
+  //
+  //   for (const {element, parentNode, childOffset} of walker) {
+  //     if (typeof element === "string") {
+  //       textElementAccumulator.push({
+  //         text: element,
+  //         parentNode: parentNode,
+  //         childOffset: childOffset,
+  //         fullStringIndex: stringIndex,
+  //       });
+  //       stringIndex += element.length;
+  //     } else if (this._looksLikeBlockElement(element)) {
+  //       if (textElementAccumulator.length > 0) {
+  //         fullStrings.push(textElementAccumulator);
+  //         textElementAccumulator = [];
+  //         stringIndex = 0;
+  //       }
+  //     }
+  //     // else continue for inline elements
+  //   }
+  //   return fullStrings
+  // }
 
-    const fullStrings = [];
-    let textElementAccumulator = [];
-    let stringIndex = 0;
-
-    for (const {element, parentNode, childOffset} of walker) {
-      if (typeof element === "string") {
-        textElementAccumulator.push({
-          text: element,
-          parentNode: parentNode,
-          childOffset: childOffset,
-          fullStringIndex: stringIndex,
-        });
-        stringIndex += element.length;
-      } else if (this._looksLikeBlockElement(element)) {
-        if (textElementAccumulator.length > 0) {
-          fullStrings.push(textElementAccumulator);
-          textElementAccumulator = [];
-          stringIndex = 0;
-        }
-      }
-      // else continue for inline elements
-    }
-    return fullStrings
-  }
-
-  _looksLikeBlockElement(element) {
-    if (!element) { return false; }
-    const blockTypes = ["br", "p", "blockquote", "div", "table", "iframe"]
-    if (_.isFunction(element.type)) {
-      return true
-    } else if (blockTypes.indexOf(element.type) >= 0) {
-      return true
-    }
-    return false
-  }
+  // _looksLikeBlockElement(element) {
+  //   if (!element) { return false; }
+  //   const blockTypes = ["br", "p", "blockquote", "div", "table", "iframe"]
+  //   if (_.isFunction(element.type)) {
+  //     return true
+  //   } else if (blockTypes.indexOf(element.type) >= 0) {
+  //     return true
+  //   }
+  //   return false
+  // }
 
   /**
    * The matches are against the full string. The match indicies may
@@ -431,174 +686,177 @@ class SearchableComponent {
    * textElEnd = 27
    * "lo hello world hel"
    */
-  _matchesFromFullString(fullString) {
-    const re = this._searchRE();
-    const rawString = _.pluck(fullString, "text").join('');
-    const matches = []
-    let match = re.exec(rawString);
-    while (match) {
-      const matchStart = match.index;
-      const matchEnd = match.index + match[0].length;
-      matches.push([matchStart, matchEnd])
-      match = re.exec(rawString)
-    }
-    return matches;
-  }
+  // _matchesFromFullString(fullString) {
+  //   const re = this._searchRE();
+  //   const rawString = _.pluck(fullString, "text").join('');
+  //   const matches = []
+  //   let match = re.exec(rawString);
+  //   while (match) {
+  //     const matchStart = match.index;
+  //     const matchEnd = match.index + match[0].length;
+  //     matches.push([matchStart, matchEnd])
+  //     match = re.exec(rawString)
+  //   }
+  //   return matches;
+  // }
 
-  _slicePointsForMatches(textElement, matches) {
-    const text = textElement.text
-    const textElStart = textElement.fullStringIndex;
-    const textElEnd = textElement.fullStringIndex + text.length;
+  // _slicePointsForMatches(textElement, matches) {
+  //   const text = textElement.text
+  //   const textElStart = textElement.fullStringIndex;
+  //   const textElEnd = textElement.fullStringIndex + text.length;
+  //
+  //   const slicePoints = [];
+  //
+  //   for (const [matchStart, matchEnd] of matches) {
+  //     if (matchStart < textElStart && matchEnd >= textElEnd) {
+  //       // textEl is completely inside of match
+  //       slicePoints.push([0, text.length])
+  //     } else if (matchStart >= textElStart && matchEnd < textElEnd) {
+  //       // match is completely inside of textEl
+  //       slicePoints.push([matchStart - textElStart, matchEnd - textElStart])
+  //     } else if (matchEnd >= textElStart && matchEnd < textElEnd) {
+  //       // match started in a previous el but ends in this one
+  //       slicePoints.push([0, matchEnd - textElStart])
+  //     } else if (matchStart >= textElStart && matchStart < textElEnd) {
+  //       // match starts in this el but ends in a future one
+  //       slicePoints.push([matchStart - textElStart, text.length])
+  //     } else {
+  //       // match is not in this element
+  //       continue;
+  //     }
+  //   }
+  //   return slicePoints;
+  // }
 
-    const slicePoints = [];
+  // _slicedTextElement(textElement, slicePoints) {
+  //   const text = textElement.text;
+  //   const slices = [];
+  //   let sliceOffset = 0;
+  //   let remainingText = text;
+  //   for (let [sliceStart, sliceEnd] of slicePoints) {
+  //     sliceStart = sliceStart + sliceOffset;
+  //     sliceEnd = sliceEnd + sliceOffset;
+  //     const before = remainingText.slice(0, sliceStart);
+  //     if (before.length > 0) {
+  //       slices.push(before)
+  //     }
+  //
+  //     const matchText = remainingText.slice(sliceStart, sliceEnd);
+  //     if (matchText.length > 0) {
+  //       slices.push(React.createElement(SearchMatch,
+  //             {}, matchText));
+  //     }
+  //
+  //     remainingText = remainingText.slice(sliceEnd, remainingText.length)
+  //     sliceOffset += sliceEnd
+  //   }
+  //   slices.push(remainingText);
+  //   return slices;
+  // }
 
-    for (const [matchStart, matchEnd] of matches) {
-      if (matchStart < textElStart && matchEnd >= textElEnd) {
-        // textEl is completely inside of match
-        slicePoints.push([0, text.length])
-      } else if (matchStart >= textElStart && matchEnd < textElEnd) {
-        // match is completely inside of textEl
-        slicePoints.push([matchStart - textElStart, matchEnd - textElStart])
-      } else if (matchEnd >= textElStart && matchEnd < textElEnd) {
-        // match started in a previous el but ends in this one
-        slicePoints.push([0, matchEnd - textElStart])
-      } else if (matchStart >= textElStart && matchStart < textElEnd) {
-        // match starts in this el but ends in a future one
-        slicePoints.push([matchStart - textElStart, text.length])
-      } else {
-        // match is not in this element
-        continue;
-      }
-    }
-    return slicePoints;
-  }
-
-  _slicedTextElement(textElement, slicePoints) {
-    const text = textElement.text;
-    const slices = [];
-    let sliceOffset = 0;
-    let remainingText = text;
-    for (let [sliceStart, sliceEnd] of slicePoints) {
-      sliceStart = sliceStart + sliceOffset;
-      sliceEnd = sliceEnd + sliceOffset;
-      const before = remainingText.slice(0, sliceStart);
-      if (before.length > 0) {
-        slices.push(before)
-      }
-
-      const matchText = remainingText.slice(sliceStart, sliceEnd);
-      if (matchText.length > 0) {
-        slices.push(React.createElement(SearchMatch,
-              {}, matchText));
-      }
-
-      remainingText = remainingText.slice(sliceEnd, remainingText.length)
-      sliceOffset += sliceEnd
-    }
-    slices.push(remainingText);
-    return slices;
-  }
-
-  _highlightSearch(element, matchNodeMap) {
-    if (React.isValidElement(element) || _.isArray(element)) {
-      let newChildren = []
-      let children;
-
-      if (_.isArray(element)) {
-        children = element;
-      } else {
-        children = element.props.children;
-      }
-
-      const matchNode = matchNodeMap.get(element);
-
-      if (!children) {
-        newChildren = null
-      } else if (React.isValidElement(children)) {
-        if (matchNode && matchNode.childOffset === 0) {
-          newChildren = matchNode.newChildren
-        } else {
-          newChildren = this._highlightSearch(children, matchNodeMap)
-        }
-      } else if (!_.isString(children) && children.length > 0) {
-        for (let i = 0; i < children.length; i++) {
-          const child = children[i];
-          if (matchNode && matchNode.childOffset === i) {
-            newChildren.push(matchNode.newChildren)
-          } else {
-            newChildren.push(this._highlightSearch(child, matchNodeMap))
-          }
-        }
-      } else {
-        if (matchNode && matchNode.childOffset === 0) {
-          newChildren = matchNode.newChildren
-        } else {
-          newChildren = children
-        }
-      }
-
-      if (_.isArray(element)) {
-        return [newChildren];
-      }
-      return React.cloneElement(element, {}, newChildren)
-    }
-    return element;
-  }
+  // _highlightSearch(element, matchNodeMap) {
+  //   if (React.isValidElement(element) || _.isArray(element)) {
+  //     let newChildren = []
+  //     let children;
+  //
+  //     if (_.isArray(element)) {
+  //       children = element;
+  //     } else {
+  //       children = element.props.children;
+  //     }
+  //
+  //     const matchNode = matchNodeMap.get(element);
+  //
+  //     if (!children) {
+  //       newChildren = null
+  //     } else if (React.isValidElement(children)) {
+  //       if (matchNode && matchNode.childOffset === 0) {
+  //         newChildren = matchNode.newChildren
+  //       } else {
+  //         newChildren = this._highlightSearch(children, matchNodeMap)
+  //       }
+  //     } else if (!_.isString(children) && children.length > 0) {
+  //       for (let i = 0; i < children.length; i++) {
+  //         const child = children[i];
+  //         if (matchNode && matchNode.childOffset === i) {
+  //           newChildren.push(matchNode.newChildren)
+  //         } else {
+  //           newChildren.push(this._highlightSearch(child, matchNodeMap))
+  //         }
+  //       }
+  //     } else {
+  //       if (matchNode && matchNode.childOffset === 0) {
+  //         newChildren = matchNode.newChildren
+  //       } else {
+  //         newChildren = children
+  //       }
+  //     }
+  //
+  //     if (_.isArray(element)) {
+  //       return [newChildren];
+  //     }
+  //     return React.cloneElement(element, {}, newChildren)
+  //   }
+  //   return element;
+  // }
 
   render(superMethod, ...args) {
     if (superMethod) {
       const vDOM = superMethod.apply(this, args);
-      if (this._matchesSearch(vDOM)) {
-        const normalizedDOM = this._removeMatchesAndNormalize(vDOM)
-        const matchNodeMap = this._getElementsWithNewMatchNodes(normalizedDOM);
-        return this._highlightSearch(normalizedDOM, matchNodeMap)
+      const parser = new VirtualDOMParser();
+      const searchTerm = this.state.__searchTerm
+      if (parser.matchesSearch(vDOM, searchTerm)) {
+        const normalizedDOM = parser.removeMatchesAndNormalize(vDOM)
+        const matchNodeMap = parser.getElementsWithNewMatchNodes(normalizedDOM, searchTerm);
+        return parser.highlightSearch(normalizedDOM, matchNodeMap)
       }
       return vDOM
-      // console.log(vDOM);
-      // React.children
-      // const newChildren = this.cloneAndModify(vDOM.props.children);
-      // const newvDOM = this.cloneAndModify(vDOM)
-
-      // const newDOM = React.addons.update(vDOM, {});
-      // const newDOM = React.cloneElement(vDOM);
-      // console.log(vDOM, newDOM);
-      // console.log(vDOM === newDOM); // false
-      // console.log(vDOM.props.children === newDOM.props.children); // true
-      // return newDOM;
-      // const walker = VirtualDOMUtils.walk(vDOM);
-      // walker.next();
-      //
-      // console.log(vDOM);
-      // return vDOM
     }
   }
 
-  cloneAndModify(superMethod, element) {
-    // if (element && element.constructor.name === "String") {
-    //   // return React.cloneElement(element, [], "TEST")
-    //   return element
-    if (React.isValidElement(element)) {
-      const children = React.Children.map(element.props.children, (child) => {
-        this.cloneAndModify(child)
-      });
-      return React.cloneElement(element, [], children)
-      // element.props.children = children
-      // return element
-    }
-    return element
-
-    // return React.Children.map(children, (child) => {
-    //   return child;
-    //   // if (React.isValidElement(child)) {
-    //   //   const newChildren = this.cloneAndModify(null, child.props.children);
-    //   //   return React.cloneElement(child, {}, newChildren)
-    //   // } else if (child.constructor.name === "String") {
-    //   //   return "TEST"
-    //   // }
-    //   // return child
-    // });
-  }
+  // cloneAndModify(superMethod, element) {
+  //   // if (element && element.constructor.name === "String") {
+  //   //   // return React.cloneElement(element, [], "TEST")
+  //   //   return element
+  //   if (React.isValidElement(element)) {
+  //     const children = React.Children.map(element.props.children, (child) => {
+  //       this.cloneAndModify(child)
+  //     });
+  //     return React.cloneElement(element, [], children)
+  //     // element.props.children = children
+  //     // return element
+  //   }
+  //   return element
+  //
+  //   // return React.Children.map(children, (child) => {
+  //   //   return child;
+  //   //   // if (React.isValidElement(child)) {
+  //   //   //   const newChildren = this.cloneAndModify(null, child.props.children);
+  //   //   //   return React.cloneElement(child, {}, newChildren)
+  //   //   // } else if (child.constructor.name === "String") {
+  //   //   //   return "TEST"
+  //   //   // }
+  //   //   // return child
+  //   // });
+  // }
 }
+
+// class iFrameSearcher {
+//   constructor(dom) {
+//     this.dom = dom;
+//   }
+//   #<{(|*
+//    * An imperative renderer for iframes
+//    |)}>#
+//   render(searchTerm) {
+//     const parser = new RealDOMParser()
+//     if (parser.matchesSearch(this.dom, searchTerm)) {
+//       this.dom = parser.removeMatchesAndNormalize(this.dom)
+//       const matchNodeMap = parser.getElementsWithNewMatchNodes(this.dom)
+//       parser.highlightSearch(this.dom, matchNodeMap)
+//     }
+//   }
+// }
 
 // React.Children.forEach does not behave as you'd expect. When it gets
 // to leaf nodes, the callback gets passed the leaf node istelf instead
