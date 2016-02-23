@@ -1,26 +1,34 @@
 import _ from 'underscore'
+import React from 'react'
+import Utils from '../flux/models/utils'
 import VirtualDOMParser from './virtual-dom-parser'
 import SearchableComponentStore from '../flux/stores/searchable-component-store'
 
 class SearchableComponent {
   componentDidMount(superMethod, ...args) {
     if (superMethod) superMethod.apply(this, args);
+    this.__searchId = Utils.generateTempId();
     this._searchableListener = SearchableComponentStore.listen(() => {this._onSearchableComponentStoreChange()})
+    SearchableComponentStore.registerSearchRegion(this.__searchId, React.findDOMNode(this))
   }
 
   _onSearchableComponentStoreChange() {
+    const {searchTerm, searchIndex} = SearchableComponentStore.getSearchTermAndIndex(this.__searchId)
     this.setState({
-      __searchTerm: SearchableComponentStore.getSearchTerm(),
+      __searchTerm: searchTerm,
+      __searchIndex: searchIndex,
     })
   }
 
   componentWillUnmount(superMethod, ...args) {
     if (superMethod) superMethod.apply(this, args);
     this._searchableListener()
+    SearchableComponentStore.unregisterSearchRegion(this.__searchId)
   }
 
   componentDidUpdate(superMethod, ...args) {
     if (superMethod) superMethod.apply(this, args);
+    SearchableComponentStore.registerSearchRegion(this.__searchId, React.findDOMNode(this))
   }
 
   render(superMethod, ...args) {

@@ -50,14 +50,17 @@ export default class UnifiedDOMParser {
 
   matchesFromFullString(fullString, searchTerm) {
     const re = this.searchRE(searchTerm);
+    if (!re) { return [] }
     const rawString = this.getRawFullString(fullString)
     const matches = []
+    let matchCount = 0;
     let match = re.exec(rawString);
-    while (match) {
+    while (match && matchCount < 1000) {
       const matchStart = match.index;
       const matchEnd = match.index + match[0].length;
       matches.push([matchStart, matchEnd])
       match = re.exec(rawString)
+      matchCount += 1;
     }
     return matches;
   }
@@ -65,11 +68,18 @@ export default class UnifiedDOMParser {
 
   searchRE(searchTerm) {
     let re;
-    if (/^\/.+\/$/.test(searchTerm)) {
-      // Looks like regex
-      re = new RegExp(searchTerm.slice(1, searchTerm.length - 1), 'gi');
-    } else {
-      re = new RegExp(Utils.escapeRegExp(searchTerm), "ig");
+    const regexRe = /^\/(.+)\/(.*)$/
+    try {
+      if (regexRe.test(searchTerm)) {
+        // Looks like regex
+        const matches = searchTerm.match(regexRe);
+        const reText = matches[1];
+        re = new RegExp(reText, "ig");
+      } else {
+        re = new RegExp(Utils.escapeRegExp(searchTerm), "ig");
+      }
+    } catch (e) {
+      return null
     }
     return re
   }

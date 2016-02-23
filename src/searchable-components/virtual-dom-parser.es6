@@ -82,7 +82,7 @@ export default class VirtualDOMParser extends UnifiedDOMParser {
       resetAccumulator();
 
       if (_.isArray(element)) {
-        return [newChildren];
+        return newChildren;
       }
       return React.cloneElement(element, {}, newChildren)
     }
@@ -147,7 +147,7 @@ export default class VirtualDOMParser extends UnifiedDOMParser {
       }
 
       if (_.isArray(element)) {
-        return [newChildren];
+        return newChildren;
       }
       return React.cloneElement(element, {}, newChildren)
     }

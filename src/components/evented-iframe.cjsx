@@ -1,5 +1,6 @@
 React = require 'react'
-{RegExpUtils,
+{Utils,
+ RegExpUtils,
  SearchableComponentMaker,
  SearchableComponentStore}= require 'nylas-exports'
 IFrameSearcher = require '../searchable-components/iframe-searcher'
@@ -31,12 +32,24 @@ class EventedIFrame extends React.Component
 
   componentDidMount: =>
     if @props.searchable
+      @_searchId = Utils.generateTempId()
       @_searchUsub = SearchableComponentStore.listen @_onSearchTermChange
+      SearchableComponentStore.registerSearchRegion(@_searchId, React.findDOMNode(this))
     @_subscribeToIFrameEvents()
 
   componentWillUnmount: =>
     @_unsubscribeFromIFrameEvents()
-    @_searchUsub() if @props.searchable
+    if @props.searchable
+      @_searchUsub()
+      SearchableComponentStore.unregisterSearchRegion(@_searchId)
+
+  componentDidUpdate: ->
+    if @props.searchable
+      SearchableComponentStore.registerSearchRegion(@_searchId, React.findDOMNode(this))
+
+  shouldComponentUpdate: (nextProps, nextState) =>
+    not Utils.isEqualReact(nextProps, @props) or
+    not Utils.isEqualReact(nextState, @state)
 
   ###
   Public: Call this method if you replace the contents of the iframe's document.
@@ -50,8 +63,8 @@ class EventedIFrame extends React.Component
     return unless @props.searchable
     node = React.findDOMNode(@)
     doc = node.contentDocument?.body ? node.contentDocument
-    searchTerm = SearchableComponentStore.getSearchTerm()
-    IFrameSearcher.highlightSearchInDocument(searchTerm, doc)
+    {searchTerm, searchIndex} = SearchableComponentStore.getSearchTermAndIndex(@_searchId)
+    numMatches = IFrameSearcher.highlightSearchInDocument(searchTerm, doc)
 
   _unsubscribeFromIFrameEvents: =>
     node = React.findDOMNode(@)
