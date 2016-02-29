@@ -32,20 +32,20 @@ class EventedIFrame extends React.Component
 
   componentDidMount: =>
     if @props.searchable
-      @_searchId = Utils.generateTempId()
-      @_searchUsub = SearchableComponentStore.listen @_onSearchTermChange
-      SearchableComponentStore.registerSearchRegion(@_searchId, React.findDOMNode(this))
+      @_regionId = Utils.generateTempId()
+      @_searchUsub = SearchableComponentStore.listen @_onSearchableStoreChange
+      SearchableComponentStore.registerSearchRegion(@_regionId, React.findDOMNode(this))
     @_subscribeToIFrameEvents()
 
   componentWillUnmount: =>
     @_unsubscribeFromIFrameEvents()
     if @props.searchable
       @_searchUsub()
-      SearchableComponentStore.unregisterSearchRegion(@_searchId)
+      SearchableComponentStore.unregisterSearchRegion(@_regionId)
 
   componentDidUpdate: ->
     if @props.searchable
-      SearchableComponentStore.registerSearchRegion(@_searchId, React.findDOMNode(this))
+      SearchableComponentStore.registerSearchRegion(@_regionId, React.findDOMNode(this))
 
   shouldComponentUpdate: (nextProps, nextState) =>
     not Utils.isEqualReact(nextProps, @props) or
@@ -59,12 +59,13 @@ class EventedIFrame extends React.Component
     @_unsubscribeFromIFrameEvents()
     @_subscribeToIFrameEvents()
 
-  _onSearchTermChange: =>
+  _onSearchableStoreChange: =>
     return unless @props.searchable
     node = React.findDOMNode(@)
     doc = node.contentDocument?.body ? node.contentDocument
-    {searchTerm, searchIndex} = SearchableComponentStore.getSearchTermAndIndex(@_searchId)
-    numMatches = IFrameSearcher.highlightSearchInDocument(searchTerm, doc)
+    {searchTerm, searchIndex} = SearchableComponentStore.getSearchTermAndIndex(@_regionId)
+    renderIndexForCurrentMatch = SearchableComponentStore.getRenderIndexForCurrentMatch(@_regionId)
+    IFrameSearcher.highlightSearchInDocument(searchTerm, doc, renderIndexForCurrentMatch)
 
   _unsubscribeFromIFrameEvents: =>
     node = React.findDOMNode(@)

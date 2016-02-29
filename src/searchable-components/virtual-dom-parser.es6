@@ -92,11 +92,12 @@ export default class VirtualDOMParser extends UnifiedDOMParser {
     return element.type === SearchMatch
   }
 
-  createTextNode(rawText) {
+  createTextNode({rawText}) {
     return rawText
   }
-  createMatchNode(rawText) {
-    return React.createElement(SearchMatch, {}, rawText)
+  createMatchNode({matchText, regionId, isCurrentMatch, renderIndex}) {
+    const className = isCurrentMatch ? "current-match" : ""
+    return React.createElement(SearchMatch, {className, regionId, renderIndex}, matchText);
   }
   textNodeKey(textElement) {
     return textElement.parentNode

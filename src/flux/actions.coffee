@@ -523,7 +523,10 @@ class Actions
   @setMetadata: ActionScopeWindow
 
   @draftParticipantsChanged: ActionScopeWindow
+
   @searchInMessages: ActionScopeWindow
+  @nextSearchResult: ActionScopeWindow
+  @previousSearchResult: ActionScopeWindow
 
 # Read the actions we declared on the dummy Actions object above
 # and translate them into Reflux Actions

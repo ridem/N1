@@ -1,6 +1,10 @@
 import {Utils} from 'nylas-exports'
 
 export default class UnifiedDOMParser {
+  constructor(regionId) {
+    this.regionId = regionId
+    this.matchRenderIndex += 0
+  }
 
   matchesSearch(dom, searchTerm) {
     if ((searchTerm || "").length === 0) { return false; }
@@ -87,7 +91,7 @@ export default class UnifiedDOMParser {
   // OVERRIDE ME
   removeMatchesAndNormalize() { }
 
-  getElementsWithNewMatchNodes(rootNode, searchTerm) {
+  getElementsWithNewMatchNodes(rootNode, searchTerm, currentMatchRenderIndex) {
     const fullStrings = this.buildNormalizedText(rootNode)
 
     const modifiedElements = new Map()
@@ -103,7 +107,7 @@ export default class UnifiedDOMParser {
         const slicePoints = this.slicePointsForMatches(textNode,
             matches);
         if (slicePoints.length > 0) {
-          const {key, originalTextNode, newTextNodes} = this.slicedTextElement(textNode, slicePoints);
+          const {key, originalTextNode, newTextNodes} = this.slicedTextElement(textNode, slicePoints, currentMatchRenderIndex);
           modifiedElements.set(key, {originalTextNode, newTextNodes})
         }
       }
@@ -145,7 +149,7 @@ export default class UnifiedDOMParser {
    * element at the slice points and return the new nodes as a value,
    * keyed by a way to find that insertion point in the DOM.
    */
-  slicedTextElement(textNode, slicePoints) {
+  slicedTextElement(textNode, slicePoints, currentMatchRenderIndex) {
     const key = this.textNodeKey(textNode)
     const text = this.textNodeContents(textNode)
     const newTextNodes = [];
@@ -156,18 +160,23 @@ export default class UnifiedDOMParser {
       sliceEnd = sliceEnd - sliceOffset;
       const before = remainingText.slice(0, sliceStart);
       if (before.length > 0) {
-        newTextNodes.push(this.createTextNode(before))
+        newTextNodes.push(this.createTextNode({rawText: before}))
       }
 
       const matchText = remainingText.slice(sliceStart, sliceEnd);
       if (matchText.length > 0) {
-        newTextNodes.push(this.createMatchNode(matchText));
+        let isCurrentMatch = false;
+        if (this.matchRenderIndex === currentMatchRenderIndex) {
+          isCurrentMatch = true;
+        }
+        newTextNodes.push(this.createMatchNode({regionId: this.regionId, renderIndex: this.matchRenderIndex, matchText, isCurrentMatch}));
+        this.matchRenderIndex += 1
       }
 
       remainingText = remainingText.slice(sliceEnd, remainingText.length)
       sliceOffset += sliceEnd
     }
-    newTextNodes.push(this.createTextNode(remainingText));
+    newTextNodes.push(this.createTextNode({rawText: remainingText}));
     return {
       key: key,
       originalTextNode: textNode,

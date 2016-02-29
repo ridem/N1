@@ -48,12 +48,16 @@ export default class RealDOMParser extends UnifiedDOMParser {
     return element
   }
 
-  createTextNode(rawText) {
+  createTextNode({rawText}) {
     return document.createTextNode(rawText);
   }
-  createMatchNode(rawText) {
-    const text = document.createTextNode(rawText);
+  createMatchNode({matchText, regionId, isCurrentMatch, renderIndex}) {
+    const text = document.createTextNode(matchText);
     const newNode = document.createElement('search-match');
+    const className = isCurrentMatch ? "current-match" : "";
+    newNode.setAttribute('data-region-id', regionId)
+    newNode.setAttribute('data-render-index', renderIndex)
+    newNode.setAttribute('class', className)
     newNode.appendChild(text);
     return newNode
   }

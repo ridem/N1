@@ -7,13 +7,13 @@ import SearchableComponentStore from '../flux/stores/searchable-component-store'
 class SearchableComponent {
   componentDidMount(superMethod, ...args) {
     if (superMethod) superMethod.apply(this, args);
-    this.__searchId = Utils.generateTempId();
+    this.__regionId = Utils.generateTempId();
     this._searchableListener = SearchableComponentStore.listen(() => {this._onSearchableComponentStoreChange()})
-    SearchableComponentStore.registerSearchRegion(this.__searchId, React.findDOMNode(this))
+    SearchableComponentStore.registerSearchRegion(this.__regionId, React.findDOMNode(this))
   }
 
   _onSearchableComponentStoreChange() {
-    const {searchTerm, searchIndex} = SearchableComponentStore.getSearchTermAndIndex(this.__searchId)
+    const {searchTerm, searchIndex} = SearchableComponentStore.getSearchTermAndIndex(this.__regionId)
     this.setState({
       __searchTerm: searchTerm,
       __searchIndex: searchIndex,
@@ -23,22 +23,22 @@ class SearchableComponent {
   componentWillUnmount(superMethod, ...args) {
     if (superMethod) superMethod.apply(this, args);
     this._searchableListener()
-    SearchableComponentStore.unregisterSearchRegion(this.__searchId)
+    SearchableComponentStore.unregisterSearchRegion(this.__regionId)
   }
 
   componentDidUpdate(superMethod, ...args) {
     if (superMethod) superMethod.apply(this, args);
-    SearchableComponentStore.registerSearchRegion(this.__searchId, React.findDOMNode(this))
+    SearchableComponentStore.registerSearchRegion(this.__regionId, React.findDOMNode(this))
   }
 
   render(superMethod, ...args) {
     if (superMethod) {
       const vDOM = superMethod.apply(this, args);
-      const parser = new VirtualDOMParser();
+      const parser = new VirtualDOMParser(this.__regionId);
       const searchTerm = this.state.__searchTerm
       if (parser.matchesSearch(vDOM, searchTerm)) {
         const normalizedDOM = parser.removeMatchesAndNormalize(vDOM)
-        const matchNodeMap = parser.getElementsWithNewMatchNodes(normalizedDOM, searchTerm);
+        const matchNodeMap = parser.getElementsWithNewMatchNodes(normalizedDOM, searchTerm, SearchableComponentStore.getRenderIndexForCurrentMatch(this.__regionId));
         return parser.highlightSearch(normalizedDOM, matchNodeMap)
       }
       return vDOM
