@@ -3,7 +3,7 @@ import {Utils} from 'nylas-exports'
 export default class UnifiedDOMParser {
   constructor(regionId) {
     this.regionId = regionId
-    this.matchRenderIndex += 0
+    this.matchRenderIndex = 0
   }
 
   matchesSearch(dom, searchTerm) {

@@ -38,7 +38,7 @@ class SearchableComponent {
       const searchTerm = this.state.__searchTerm
       if (parser.matchesSearch(vDOM, searchTerm)) {
         const normalizedDOM = parser.removeMatchesAndNormalize(vDOM)
-        const matchNodeMap = parser.getElementsWithNewMatchNodes(normalizedDOM, searchTerm, SearchableComponentStore.getRenderIndexForCurrentMatch(this.__regionId));
+        const matchNodeMap = parser.getElementsWithNewMatchNodes(normalizedDOM, searchTerm, this.state.__searchIndex);
         return parser.highlightSearch(normalizedDOM, matchNodeMap)
       }
       return vDOM

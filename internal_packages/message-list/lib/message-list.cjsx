@@ -224,11 +224,18 @@ class MessageList extends React.Component
     </KeyCommandsRegion>
 
   _renderMessageListSearch: ->
-    <input onChange={@_onSearchChange} value={@state.searchTerm}/>
+    <input onChange={@_onSearchChange} onKeyDown={@_onSearchKeyDown} value={@state.searchTerm}/>
 
   _onSearchChange: (event) =>
     @setState searchTerm: event.target.value
     Actions.searchInMessages(event.target.value)
+
+  _onSearchKeyDown: (event) =>
+    if event.key is "Enter"
+      if event.shiftKey
+        Actions.previousSearchResult()
+      else
+        Actions.nextSearchResult()
 
   _renderSubject: ->
     subject = @state.currentThread.subject

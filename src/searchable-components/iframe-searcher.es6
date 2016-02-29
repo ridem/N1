@@ -4,11 +4,11 @@ export default class IFrameSearcher {
   /**
    * An imperative renderer for iframes
    */
-  static highlightSearchInDocument(searchTerm, doc, renderIndexForCurrentMatch) {
-    const parser = new RealDOMParser()
+  static highlightSearchInDocument(regionId, searchTerm, doc, searchIndex) {
+    const parser = new RealDOMParser(regionId)
     if (parser.matchesSearch(doc, searchTerm)) {
       parser.removeMatchesAndNormalize(doc)
-      const matchNodeMap = parser.getElementsWithNewMatchNodes(doc, searchTerm, renderIndexForCurrentMatch)
+      const matchNodeMap = parser.getElementsWithNewMatchNodes(doc, searchTerm, searchIndex)
       parser.highlightSearch(doc, matchNodeMap)
     } else {
       parser.removeMatchesAndNormalize(doc)

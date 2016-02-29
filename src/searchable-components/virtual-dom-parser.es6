@@ -6,7 +6,10 @@ import {VirtualDOMUtils} from 'nylas-exports'
 
 export default class VirtualDOMParser extends UnifiedDOMParser {
   getWalker(dom) {
-    return VirtualDOMUtils.walk(dom);
+    const pruneFn = (node) => {
+      return node.type === "style";
+    }
+    return VirtualDOMUtils.walk({element: dom, pruneFn});
   }
 
   isTextNode({element}) {

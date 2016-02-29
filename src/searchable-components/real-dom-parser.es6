@@ -3,18 +3,26 @@ import UnifiedDOMParser from './unified-dom-parser'
 import {DOMUtils} from 'nylas-exports'
 
 export default class RealDOMParser extends UnifiedDOMParser {
-  *_genDOMWalker(treeWalker) {
-    let node = treeWalker.nextNode();
-    while (node) {
+  *_pruningDOMWalker({node, pruneFn, filterFn}) {
+    if (filterFn(node)) {
       yield node;
-      node = treeWalker.nextNode();
     }
-    return
+    if (node && !pruneFn(node) && node.childNodes.length > 0) {
+      for (let i = 0; i < node.childNodes.length; i++) {
+        yield *this._pruningDOMWalker({node: node.childNodes[i], pruneFn, filterFn});
+      }
+    }
+    return;
   }
 
-  getWalker(dom, filter) {
-    const treeWalker = document.createTreeWalker(dom, filter);
-    return this._genDOMWalker(treeWalker);
+  getWalker(dom) {
+    const filterFn = (node) => {
+      return node.nodeType === Node.TEXT_NODE
+    }
+    const pruneFn = (node) => {
+      return node.nodeName === "STYLE"
+    }
+    return this._pruningDOMWalker({node: dom, pruneFn, filterFn});
   }
 
   isTextNode(node) {
@@ -66,7 +74,7 @@ export default class RealDOMParser extends UnifiedDOMParser {
   }
 
   highlightSearch(element, matchNodeMap) {
-    const walker = this.getWalker(element, NodeFilter.SHOW_TEXT);
+    const walker = this.getWalker(element);
     // We have to expand the whole generator because we're mutating in
     // place
     const textNodes = [...walker]

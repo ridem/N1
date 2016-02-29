@@ -64,8 +64,7 @@ class EventedIFrame extends React.Component
     node = React.findDOMNode(@)
     doc = node.contentDocument?.body ? node.contentDocument
     {searchTerm, searchIndex} = SearchableComponentStore.getSearchTermAndIndex(@_regionId)
-    renderIndexForCurrentMatch = SearchableComponentStore.getRenderIndexForCurrentMatch(@_regionId)
-    IFrameSearcher.highlightSearchInDocument(searchTerm, doc, renderIndexForCurrentMatch)
+    IFrameSearcher.highlightSearchInDocument(@_regionId, searchTerm, doc, searchIndex)
 
   _unsubscribeFromIFrameEvents: =>
     node = React.findDOMNode(@)

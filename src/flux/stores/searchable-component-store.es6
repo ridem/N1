@@ -8,7 +8,7 @@ class SearchableComponentStore extends NylasStore {
     this.matchNode = null
     this.matchNodes = []
     this.matchCount = 0;
-    this.globalIndex = 0;
+    this.globalIndex = null; // null means nothing is selected
 
     this.searchTerm = ""
 
@@ -19,27 +19,17 @@ class SearchableComponentStore extends NylasStore {
     this.listenTo(Actions.previousSearchResult, this._previousSearchResult)
   }
 
-  /**
-   * When components mount
-   *
-   */
   _nextSearchResult = () => {
     this._moveGlobalIndexBy(1)
-
-    // const sortedNodes = this.getSortedMatchNodes();
-    // const focusedNode = sortedNodes[this._moveGlobalIndexBy(1)]
-    //
-    // if (this.numResults === 0) {
-    //   this.globalIndex = 0;
-    // } else {
-    //   this.globalIndex = ((this.globalIndex || 0) + 1) % this.numResults;
-    // }
   }
 
   _previousSearchResult = () => {
     this._moveGlobalIndexBy(-1)
   }
 
+  // This needs to be debounced since it's called when all of our
+  // components are mounting and unmounting. It also is very expensive
+  // since it calls `getBoundingClientRect` and will trigger repaints.
   _recalculateMatchNodes = _.debounce(() => {
     this.matchNodes = []
     _.each(this.searchRegions, (node) => {
@@ -50,7 +40,8 @@ class SearchableComponentStore extends NylasStore {
         const iframeRect = node.getBoundingClientRect();
         topOffset = iframeRect.top
         leftOffset = iframeRect.left
-        refNode = node.contentDocument
+        refNode = node.contentDocument.body
+        if (!refNode) { refNode = node.contentDocument; }
       } else {
         refNode = node
       }
@@ -71,20 +62,31 @@ class SearchableComponentStore extends NylasStore {
     });
 
     this.matchCount = this.matchNodes.length;
-    this.globalIndex = Math.max(this.matchCount - 1, this.globalIndex);
-    this.matchNode = this.matchNodes[this.globalIndex]
-    this.trigger()
-  }, 50);
 
-  getRenderIndexForCurrentMatch(regionId) {
-    if (regionId && this.matchNode.node.getAttribute('data-region-id') === regionId) {
-      return this.matchNode.node.getAttribute('data-render-index')
+    if (this.globalIndex !== null) {
+      this.globalIndex = Math.min(this.matchCount - 1, this.globalIndex);
+      this.matchNode = this.matchNodes[this.globalIndex]
     }
-    return null
+
+    this.trigger()
+  }, 100);
+
+  /**
+   * The searchIndex
+   */
+  getSearchTermAndIndex(regionId) {
+    let searchIndex = null;
+    if (regionId && this.matchNode && this.matchNode.node.getAttribute('data-region-id') === regionId) {
+      searchIndex = +this.matchNode.node.getAttribute('data-render-index')
+    }
+    return {searchTerm: this.searchTerm, searchIndex}
   }
 
   _moveGlobalIndexBy(amount) {
     if (this.matchCount === 0) {
+      return
+    }
+    if (this.globalIndex === null) {
       this.globalIndex = 0;
     } else {
       this.globalIndex += amount;
@@ -104,24 +106,6 @@ class SearchableComponentStore extends NylasStore {
       this._recalculateMatchNodes()
     }
   }
-
-  // getSearchTermAndIndex(regionId) {
-  //   const searchTerm = this.searchTerm;
-  //   let localIndex = -1;
-  //   let matchCount = 0;
-  //   if (this.searchRegions.length === 0) {
-  //     return {searchTerm, localIndex: null}
-  //   }
-  //   for (const searchRegion of this.searchRegions) {
-  //     if (this.globalIndex <= matchCount) {
-  //       localIndex = matchCount - this.globalIndex
-  //       return {searchTerm, localIndex}
-  //     }
-  //     matchCount += searchRegion.numMatches
-  //   }
-  //   this.searchRegions[this.searchRegions.length - 1]
-  //   return {searchTerm, localIndex}
-  // }
 
   registerSearchRegion(regionId, domNode) {
     this.searchRegions[regionId] = domNode
